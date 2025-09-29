@@ -218,7 +218,7 @@ export default function App() {
         window.speechSynthesis.cancel(); // Stop any previous speech
 
         const utterance = new SpeechSynthesisUtterance(entry.vi);
-        utterance.rate = 0.2; // Set speed to 0.2 as requested
+        utterance.rate = 0.5; // Set speed to 0.5x
 
         const allVoices = window.speechSynthesis.getVoices();
         const vietnameseVoices = allVoices.filter(voice => voice.lang === 'vi-VN');
