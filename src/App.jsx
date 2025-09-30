@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 // --- IMPORTANT CONFIGURATION ---
 // You only need this ONE URL from your Google Apps Script deployment.
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEjHDVGzFifUtjq4mZJ6H1pl_X0VoS2-aOB2WJv3AAekyyrR0xSm2BgwuPbPKnNIK-5w/exec';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyitsyhquj1kvVUfW2E2WGib-z2PZfklZJWm44sqsv7mwUmsKuVEo5VOuL4Le1xazcyRg/exec';
 // -----------------------------
 
 
@@ -60,6 +60,19 @@ const ShuffleIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="20 16 20 21 15 21"></polyline><line x1="15" y1="15" x2="20" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
 );
 
+const LoaderIcon = ({ className = "h-6 w-6" }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${className} animate-spin text-orange-400`}>
+        <line x1="12" y1="2" x2="12" y2="6"></line>
+        <line x1="12" y1="18" x2="12" y2="22"></line>
+        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+        <line x1="2" y1="12" x2="6" y2="12"></line>
+        <line x1="18" y1="12" x2="22" y2="12"></line>
+        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+    </svg>
+);
+
 
 // Main Application Component
 export default function App() {
@@ -78,18 +91,17 @@ export default function App() {
 
   // Data loading and error states
   const [isLoading, setIsLoading] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [error, setError] = useState(null);
   
   // State for favorites, stored in localStorage
   const [favorites, setFavorites] = useState(new Set());
   
-  // State for available speech synthesis voices
-  const [voices, setVoices] = useState([]);
-
-  // State for tracking currently playing audio
+  // Ref to store the current Audio object
+  const audioRef = useRef(null);
   const [playingEntryId, setPlayingEntryId] = useState(null);
   const [isSpeechPaused, setIsSpeechPaused] = useState(false);
-
+  
   // State for Challenge mode
   const [challengeStep, setChallengeStep] = useState(0); // 0: inactive, 1: select tabs, 2: select mode
   const [selectedChallengeTabIds, setSelectedChallengeTabIds] = useState([]);
@@ -160,7 +172,7 @@ export default function App() {
     }
   };
 
-  // Load favorites and voices on initial mount
+  // Load favorites on initial mount
   useEffect(() => {
     try {
         const storedFavorites = localStorage.getItem('vietSpeakFavorites');
@@ -171,18 +183,6 @@ export default function App() {
         console.error("Could not load favorites from localStorage", e);
     }
     fetchData();
-
-    // Populate speech synthesis voices
-    const handleVoicesChanged = () => {
-        setVoices(window.speechSynthesis.getVoices());
-    };
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-        handleVoicesChanged(); // For browsers that load it synchronously
-        window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
-        return () => {
-            window.speechSynthesis.onvoiceschanged = null;
-        };
-    }
   }, []);
 
   // Save favorites to localStorage whenever they change
@@ -195,12 +195,12 @@ export default function App() {
 }, [favorites]);
 
 
-  // Text-to-speech function
+  // Text-to-speech function using Browser's built-in capabilities
   const toggleSpeech = (entry) => {
     if (!entry || !entry.vi) return;
 
     if (typeof window === 'undefined' || !window.speechSynthesis) {
-      alert('Your browser does not support this feature.');
+      alert('Sorry, your browser does not support text-to-speech.');
       return;
     }
     
@@ -218,7 +218,7 @@ export default function App() {
         window.speechSynthesis.cancel(); // Stop any previous speech
 
         const utterance = new SpeechSynthesisUtterance(entry.vi);
-        utterance.rate = 0.5; // Set speed to 0.5x
+        utterance.rate = 0.5; // Adjusted speech speed
 
         const allVoices = window.speechSynthesis.getVoices();
         const vietnameseVoices = allVoices.filter(voice => voice.lang === 'vi-VN');
@@ -340,8 +340,10 @@ export default function App() {
   };
 
   const handleGoToArchives = async () => {
+    setIsNavigating(true);
     await fetchData();
     setPage('archives');
+    setIsNavigating(false);
   };
   
   // --- Challenge Mode Logic ---
@@ -479,6 +481,25 @@ export default function App() {
     }
   }, [highlightedEntryId, page]);
 
+  if (isLoading && tabs.length === 0 && !error) {
+    return (
+        <>
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Noto+Sans+JP:wght@300;400;700&display=swap');
+            body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            .animate-spin { animation: spin 1s linear infinite; }
+          `}</style>
+          <main className="bg-slate-900 min-h-screen text-white flex items-center justify-center p-4">
+              <LoaderIcon className="h-10 w-10" />
+          </main>
+          <footer className="bg-slate-900 text-center p-4 text-slate-500 text-sm fixed bottom-0 w-full">
+            Created by YenDh
+          </footer>
+        </>
+    );
+  }
+
   const renderMainPage = () => (
     <div className="w-full max-w-2xl mx-auto">
       <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-2">Viet<span className="text-orange-400">Speak</span></h1>
@@ -513,22 +534,22 @@ export default function App() {
                 <SearchIcon />
                 <span>Search</span>
             </button>
-            <button onClick={handleGoToArchives} className="flex w-full items-center justify-center gap-2 bg-orange-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-orange-600 transition-all duration-300">
-                <SaveIcon />
+            <button onClick={handleGoToArchives} disabled={isNavigating} className="flex w-full items-center justify-center gap-2 bg-orange-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-orange-600 transition-all duration-300 disabled:bg-slate-600 disabled:opacity-50">
+                {isNavigating ? <LoaderIcon className="h-5 w-5" /> : <SaveIcon />}
                 <span>Go to Archives</span>
             </button>
         </div>
 
-        <div className="mt-6 max-h-[35vh] overflow-y-auto pr-2">
-            {isLoading ? <p className="text-center text-slate-400">Loading...</p> : error ? <p className="text-center text-red-400">{error}</p> :
+        <div className="mt-6 max-h-[35vh] overflow-y-auto pr-2 flex items-start justify-center">
+            {isLoading ? null : error ? <p className="text-center text-red-400">{error}</p> :
             searchResults.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-3 w-full">
                     {searchResults.map(result => (
                         <div key={result.id} onClick={() => handleResultClick(result)} className="bg-slate-700 p-4 rounded-lg cursor-pointer hover:bg-slate-600 transition-colors">
-                            <p className="text-xs text-orange-400 font-semibold" dangerouslySetInnerHTML={{ __html: highlightText(result.tabName, searchedTerm) }} />
-                            <p className="text-white text-lg mt-1" dangerouslySetInnerHTML={{ __html: highlightText(result.vi, searchedTerm) }} />
-                            <p className="text-slate-400 text-sm font-light" dangerouslySetInnerHTML={{ __html: highlightText(result.ja, searchedTerm) }} />
-                            {result.ex && <p className="text-slate-300 text-sm italic mt-2" dangerouslySetInnerHTML={{ __html: highlightText(`e.g.: ${result.ex}`, searchedTerm) }} />}
+                            <p className="text-xs text-orange-400 font-semibold break-words" dangerouslySetInnerHTML={{ __html: highlightText(result.tabName, searchedTerm) }} />
+                            <p className="text-white text-lg mt-1 break-words" dangerouslySetInnerHTML={{ __html: highlightText(result.vi, searchedTerm) }} />
+                            <p className="text-slate-400 text-sm font-light break-words" dangerouslySetInnerHTML={{ __html: highlightText(result.ja, searchedTerm) }} />
+                            {result.ex && <p className="text-slate-300 text-sm italic mt-2 break-words" dangerouslySetInnerHTML={{ __html: highlightText(`e.g.: ${result.ex}`, searchedTerm) }} />}
                         </div>
                     ))}
                 </div>
@@ -730,7 +751,7 @@ export default function App() {
     
           <div ref={tabsContainerRef} className="flex-shrink-0 p-2 sm:p-4 border-b border-slate-700 overflow-x-auto">
             <div className="flex items-center gap-2">
-              {isLoading ? <p className="text-slate-400 px-2">Loading tabs...</p> : tabs.map(tab => (
+              {isLoading ? <div className="w-full flex justify-center p-2"><LoaderIcon /></div> : tabs.map(tab => (
                 <div key={tab.id} className="relative group">
                   <button id={`tab-button-${tab.id}`} onClick={() => setActiveTab(tab.id)} className={`py-2 px-4 rounded-lg text-sm sm:text-base font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === tab.id ? 'bg-orange-500 text-white shadow-md' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{tab.name}</button>
                 </div>
@@ -739,9 +760,9 @@ export default function App() {
           </div>
     
           <div className="flex-grow p-4 sm:p-6 overflow-y-auto">
-            <div className="animate-fade-in">
-              <div className="max-h-[calc(100%-1rem)] overflow-y-auto px-2">
-                {isLoading ? <p className="text-center text-slate-400 p-8">Loading entries...</p> : activeTabData?.entries.map(entry => (
+            <div className="animate-fade-in h-full">
+              <div className="max-h-full overflow-y-auto px-2">
+                {isLoading ? <div className="h-full flex items-center justify-center"><LoaderIcon /></div> : activeTabData?.entries.map(entry => (
                   <div key={entry.id} id={`entry-item-${entry.id}`} className={`bg-slate-700 p-4 rounded-lg mb-3 transition-all hover:bg-slate-600/50 ${highlightedEntryId === entry.id ? 'ring-2 ring-orange-400 shadow-lg shadow-orange-500/20' : ''}`}>
                       <div className="flex items-start justify-between">
                           <div className="flex-grow">
@@ -750,7 +771,12 @@ export default function App() {
                               {entry.ex && <div className="mt-3 pt-3 border-t border-slate-600"><p className="text-slate-300 text-sm italic">e.g.: {entry.ex}</p></div>}
                           </div>
                           <div className="flex flex-col items-center flex-shrink-0 ml-4 space-y-2">
-                              <button onClick={() => toggleSpeech(entry)} className="text-orange-400 p-2 rounded-full hover:bg-slate-800 transition-colors">{playingEntryId === entry.id && !isSpeechPaused ? <PauseIcon /> : <VolumeIcon />}</button>
+                              <button 
+                                  onClick={() => toggleSpeech(entry)} 
+                                  className="text-orange-400 p-2 rounded-full hover:bg-slate-800 transition-colors"
+                              >
+                                  {playingEntryId === entry.id && !isSpeechPaused ? <PauseIcon /> : <VolumeIcon />}
+                              </button>
                               <button onClick={() => toggleFavorite(entry)} className="p-2 rounded-full"><HeartIcon filled={favorites.has(entry.id)} /></button>
                           </div>
                       </div>
@@ -771,6 +797,8 @@ export default function App() {
         body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
         .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
         .overflow-y-auto::-webkit-scrollbar { width: 8px; }
         .overflow-y-auto::-webkit-scrollbar-track { background: #1e2 brisket; }
         .overflow-y-auto::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
@@ -793,4 +821,5 @@ export default function App() {
     </>
   );
 }
+
 
